@@ -17,7 +17,7 @@ export interface LineAreaBarChartProps extends BaseChartCardProps {
 export default function LineAreaBarChartCard(props: LineAreaBarChartProps) {
   const {
     queryName,
-    params: {repoId1, repoId2} = {},
+    params = {},
     series: originalSeries = [],
     shouldLoad,
     tooltip,
@@ -30,26 +30,42 @@ export default function LineAreaBarChartCard(props: LineAreaBarChartProps) {
   } = props;
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('md'))
-  const remote1 = useRemoteData(queryName, {repoId: repoId1}, true, !!repoId1);
-  const remote2 = useRemoteData(queryName, {repoId: repoId2}, true, !!repoId2);
+  const {data: res, loading, error} = useRemoteData(queryName, params, true, shouldLoad);
   const {isDarkTheme} = useThemeContext();
 
-  const series = useMemo(() => {
-    return originalSeries.map((item, i) => ({
-      name: item.name ?? `repo ${i + 1}`,
-      data: [remote1, remote2][i].data?.data ?? []
-    }))
-  }, [originalSeries, remote1.data, remote2.data])
+  const data = useMemo(() => {
+    return res?.data?.map(item => {
+      item.repo_name = item.repo_name.toLowerCase()
+      return item
+    }) ?? []
+  }, [res])
 
-  console.log(series)
+  const series = useMemo(() => {
+    return originalSeries.map(item => {
+      item.name = String(item.name).toLowerCase()
+      return item
+    })
+  }, [originalSeries])
 
   const options = useMemo(() => {
     return {
       dataset: [
-        ...series.map((s, i) => {
+        {
+          id: 'dataset_raw',
+          source: data
+        },
+        ...series.map((s) => {
           return {
-            id: i,
-            source: s.data,
+            id: `dataset_of_${s.name}`,
+            fromDatasetId: 'dataset_raw',
+            transform: {
+              type: 'filter',
+              config: {
+                and: [
+                  {dimension: seriesColumnName, '=': s.name}
+                ]
+              }
+            }
           }
         })
       ],
@@ -114,18 +130,18 @@ export default function LineAreaBarChartCard(props: LineAreaBarChartProps) {
           }
         }
       }, yAxis),
-      series: series.map((s, i) => {
+      series: series.map((s) => {
         return {
           type: 'line',
           name: s.name,
-          datasetId: i,
+          datasetId: `dataset_of_${s.name}`,
           label: {
             show: !isSmall,
             position: 'top',
             fontWeight: 'bold',
             color: '#4e5771',
             formatter: (params) => {
-              const {dataIndex = 0, data = []} = params;
+              const { dataIndex = 0, data = [] } = params;
               const show = (dataIndex % 3) === 0 || (dataIndex === data.length - 1);
               return show ? data[yAxis.name] : '';
             }
@@ -143,14 +159,13 @@ export default function LineAreaBarChartCard(props: LineAreaBarChartProps) {
         }
       })
     }
-  }, [series, isDarkTheme, isSmall])
+  }, [data, isDarkTheme, isSmall])
 
-  return <BasicCard {...props} shouldLoad={repoId1 || repoId2} loading={false} error={remote1.error ?? remote2.error}
-                    query={queryName}>
+  return <BasicCard {...props} loading={loading || (shouldLoad && !res)} error={error} query={queryName} data={res}>
     <BrowserOnly>
-      {() => <ReactECharts
+      {() => res?.data?.length ? <ReactECharts
         option={options}
-        showLoading={remote1.loading || remote2.loading}
+        showLoading={!res?.data?.length}
         notMerge={true}
         lazyUpdate={true}
         style={{
@@ -166,7 +181,7 @@ export default function LineAreaBarChartCard(props: LineAreaBarChartProps) {
           width: 'auto',
           locale: 'en'
         }}
-      />}
+      /> : undefined}
     </BrowserOnly>
   </BasicCard>;
 }
