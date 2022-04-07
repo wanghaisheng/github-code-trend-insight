@@ -161,9 +161,6 @@ Here is a small test for you to practice how to use TiDB Cloud to conduct analyt
 
 ### Q: Which is the most starred database repository on January 1, 2022?
 
-:::tip
-We have collected all open source repositories on GitGub from https://db-engines.com, and store them in table: `db_repos`.
-:::
 
 ### Click for the answer. ⬇️
 
